@@ -1,8 +1,8 @@
 from datetime import datetime
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import xml.etree.ElementTree as ET
-from collections import namedtuple
 import numpy as np
 import requests
 import re
@@ -10,7 +10,19 @@ import io
 
 MetersToFeet = 3.28084
 
-#Pirep = namedtuple('Pirep', ['time', 'lat', 'long', 'alt', 'temp', 'aircraft', 'sky', 'icing', 'turb'])
+plotFile = None
+
+def setPlotFile(fileName):
+    global plotFile
+    plotFile = PdfPages(fileName)
+    plt.interactive(False)
+
+def closePlotFile():
+    global plotFile
+    if plotFile is not None:
+        plotFile.close()
+        plotFile = None
+        plt.interactive(True)
 
 class Pirep:
     def __init__(self):
@@ -27,6 +39,7 @@ class Pirep:
         self.cloudTop = None
         self.iceBase = None
         self.iceTop = None
+        self.rawText = None
 
     def __repr__(self):
         return 't: {} lat: {} long: {} alt: {} temp: {} AC: {} sky: {} icing: {} turb: {} cloudBase: {} cloudTop: {}'\
@@ -42,7 +55,10 @@ class Sounding:
         self.wdir = None
         self.wspd = None
 
-    def plot(self, p, fileName=None):
+        
+    def plot(self, p):
+        global plotFile
+        
         pirepMissingAlt = 60000
         
         fig = plt.figure()
@@ -53,7 +69,7 @@ class Sounding:
 
         plt.plot(self.temp, self.height*MetersToFeet)
         plt.plot(self.dewpt, self.height*MetersToFeet)
-        plt.title('{} {}'.format(p.sky, p.icing))
+        plt.title(p.raw, fontsize='small')
         plt.xlabel('deg C')
         plt.ylabel('ft MSL')
         if p.cloudBase is not None:
@@ -82,7 +98,10 @@ class Sounding:
 
         plt.ylim(ymin,ymax)
         plt.xlim(xmin, xmax)
-        plt.show()
+        if plotFile is None:
+            plt.show()
+        else:
+            plotFile.savefig()
         
 
 def getRucSounding(pirep, model='Op40'):
@@ -122,11 +141,11 @@ def getRucSounding(pirep, model='Op40'):
     return s
 
 
-def plotRucSoundingForPirep(pirep, fileName=None, model='Op40'):
+def plotRucSoundingForPirep(pirep, model='Op40'):
 
     s = getRucSounding(pirep, model)
 
-    s.plot(pirep, fileName)
+    s.plot(pirep)
     
     return s
 
@@ -190,7 +209,11 @@ def loadPirepData(xmlTree):
             p.turb = ""
             for t in turb.items():
                 p.turb += '{}: {} '.format(t[0], t[1])
-                
+
+        raw = rpt.find('raw_text')
+        if raw is not None:
+            p.raw = raw.text
+    
         pirepList.append(p)
 
     return(pirepList)
