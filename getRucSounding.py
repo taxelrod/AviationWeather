@@ -23,9 +23,11 @@ class Pirep:
         self.sky = None
         self.icing = None
         self.turb = None
+        self.cloudBase = None
+        self.cloudTop = None
     def __repr__(self):
-        return 't: {} lat: {} long: {} alt: {} temp: {} AC: {} sky: {} icing: {} turb: {}'\
-              .format(self.time, self.lat, self.long, self.alt, self.temp, self.aircraft, self.sky, self.icing, self.turb)
+        return 't: {} lat: {} long: {} alt: {} temp: {} AC: {} sky: {} icing: {} turb: {} cloudBase: {} cloudTop: {}'\
+              .format(self.time, self.lat, self.long, self.alt, self.temp, self.aircraft, self.sky, self.icing, self.turb, self.cloudBase, self.cloudTop)
 
 def getRucSounding(pirep, model='Op40'):
 
@@ -62,18 +64,31 @@ def getRucSounding(pirep, model='Op40'):
     return press, height, temp, dewpt, wdir, wspd, hdr
 
 
-def plotRucSoundingForPirep(pirep, model='Op40'):
+def plotRucSoundingForPirep(pirep, fileName=None, model='Op40'):
 
     p, h, t, dw, wdir, wspd, hdr = getRucSounding(pirep, model)
 
     fig=plt.figure()
+    ymax = 20000
+    xmin = np.min(dw)
+    xmax = np.max(t)
 
     plt.plot(t, h*MetersToFeet)
     plt.plot(dw, h*MetersToFeet)
     plt.title('{} {}'.format(pirep.sky, pirep.icing))
     plt.xlabel('deg C')
     plt.ylabel('ft MSL')
-    plt.ylim(0,20000)
+    if pirep.cloudBase is not None:
+        cloudBase = float(pirep.cloudBase)
+        plt.plot([xmin, xmax], [cloudBase, cloudBase], linestyle='-.')
+        ymax = np.max([ymax, 1.2*cloudBase])
+    if pirep.cloudTop is not None:
+        plt.plot([xmin, xmax], [pirep.cloudTop, pirep.cloudTop], linestyle=':')
+        ymax = np.max([ymax, 1.2*float(pirep.cloudTop)])
+        
+    print(ylim)
+    plt.ylim(0,ymax)
+    plt.xlim(xmin, xmax)
     plt.show()
 
     return p, h, t, dw, wdir, wspd, hdr
@@ -92,7 +107,6 @@ def loadPirepData(xmlTree):
         t = rpt.find('observation_time')
         if t is not None:
             tCompatible = t.text.replace('Z','+0000')
-            print(tCompatible)
             p.time = datetime.strptime(tCompatible, '%Y-%m-%dT%H:%M:%S%z').timestamp()
         else:
             print('rejected: ', rpt)
@@ -116,6 +130,11 @@ def loadPirepData(xmlTree):
         if sky is not None:
             p.sky = ""
             for s in sky.items():
+                if s[0] == 'cloud_base_ft_msl':
+                    p.cloudBase = s[1]
+                if s[0] == 'cloud_top_ft_msl':
+                    p.cloudTop = s[1]
+                    
                 p.sky += '{}: {} '.format(s[0], s[1])
                 
         turb = rpt.find('turbulence_condition')
