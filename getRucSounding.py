@@ -25,12 +25,70 @@ class Pirep:
         self.turb = None
         self.cloudBase = None
         self.cloudTop = None
+        self.iceBase = None
+        self.iceTop = None
+
     def __repr__(self):
         return 't: {} lat: {} long: {} alt: {} temp: {} AC: {} sky: {} icing: {} turb: {} cloudBase: {} cloudTop: {}'\
-              .format(self.time, self.lat, self.long, self.alt, self.temp, self.aircraft, self.sky, self.icing, self.turb, self.cloudBase, self.cloudTop)
+              .format(self.time, self.lat, self.long, self.alt, self.temp, self.aircraft, self.sky, self.icing,\
+                      self.turb, self.cloudBase, self.cloudTop, self.iceBase, self.iceTop)
+class Sounding:
+    def __init__(self):
+        self.hdr = None
+        self.press = None
+        self.height = None
+        self.temp = None
+        self.dewpt = None
+        self.wdir = None
+        self.wspd = None
+
+    def plot(self, p, fileName=None):
+        pirepMissingAlt = 60000
+        
+        fig = plt.figure()
+        ymin = 0
+        ymax = 20000
+        xmin = np.min(self.dewpt)
+        xmax = np.max(self.temp)
+
+        plt.plot(self.temp, self.height*MetersToFeet)
+        plt.plot(self.dewpt, self.height*MetersToFeet)
+        plt.title('{} {}'.format(p.sky, p.icing))
+        plt.xlabel('deg C')
+        plt.ylabel('ft MSL')
+        if p.cloudBase is not None:
+            cloudBase = float(p.cloudBase)
+            if cloudBase != pirepMissingAlt:
+                plt.plot([xmin, xmax], [cloudBase, cloudBase], linestyle='-.', color='black')
+                ymax = np.max([ymax, 1.2*cloudBase])
+
+        if p.cloudTop is not None:
+            cloudTop = float(p.cloudTop)
+            if cloudTop != pirepMissingAlt:
+                plt.plot([xmin, xmax], [cloudTop, cloudTop], linestyle=':', color='black')
+                ymax = np.max([ymax, 1.2*cloudTop])
+
+        if p.iceBase is not None:
+            iceBase = float(p.iceBase)
+            if iceBase != pirepMissingAlt:
+                plt.plot([xmin, xmax], [iceBase, iceBase], linestyle='-.', linewidth=3, color='blue')
+                ymax = np.max([ymax, 1.2*iceBase])
+
+        if p.iceTop is not None:
+            iceTop = float(p.iceTop)
+            if iceTop != pirepMissingAlt:
+                plt.plot([xmin, xmax], [iceTop, iceTop], linestyle=':', linewidth=3, color='blue')
+                ymax = np.max([ymax, 1.2*iceTop])
+
+        plt.ylim(ymin,ymax)
+        plt.xlim(xmin, xmax)
+        plt.show()
+        
 
 def getRucSounding(pirep, model='Op40'):
 
+    s = Sounding()
+    
     url = 'https://rucsoundings.noaa.gov/get_soundings.cgi?startSecs={}&n_hrs=1&airport={},{}&data_source={}'.format(pirep.time, pirep.lat, pirep.long, model)
 
     print(url)
@@ -54,44 +112,23 @@ def getRucSounding(pirep, model='Op40'):
 
     dfmask = df.mask(df==99999)
 
-    press = dfmask['press'].astype(float)
-    height = dfmask['height'].astype(float)
-    temp = dfmask['temp'].astype(float)/10.0
-    dewpt = dfmask['dewpt'].astype(float)/10.0
-    wdir = dfmask['wind dir'].astype(float)
-    wspd = dfmask['wind spd'].astype(float)
+    s.press = dfmask['press'].astype(float)
+    s.height = dfmask['height'].astype(float)
+    s.temp = dfmask['temp'].astype(float)/10.0
+    s.dewpt = dfmask['dewpt'].astype(float)/10.0
+    s.wdir = dfmask['wind dir'].astype(float)
+    s.wspd = dfmask['wind spd'].astype(float)
     
-    return press, height, temp, dewpt, wdir, wspd, hdr
+    return s
 
 
 def plotRucSoundingForPirep(pirep, fileName=None, model='Op40'):
 
-    p, h, t, dw, wdir, wspd, hdr = getRucSounding(pirep, model)
+    s = getRucSounding(pirep, model)
 
-    fig=plt.figure()
-    ymax = 20000
-    xmin = np.min(dw)
-    xmax = np.max(t)
-
-    plt.plot(t, h*MetersToFeet)
-    plt.plot(dw, h*MetersToFeet)
-    plt.title('{} {}'.format(pirep.sky, pirep.icing))
-    plt.xlabel('deg C')
-    plt.ylabel('ft MSL')
-    if pirep.cloudBase is not None:
-        cloudBase = float(pirep.cloudBase)
-        plt.plot([xmin, xmax], [cloudBase, cloudBase], linestyle='-.')
-        ymax = np.max([ymax, 1.2*cloudBase])
-    if pirep.cloudTop is not None:
-        plt.plot([xmin, xmax], [pirep.cloudTop, pirep.cloudTop], linestyle=':')
-        ymax = np.max([ymax, 1.2*float(pirep.cloudTop)])
-        
-    print(ylim)
-    plt.ylim(0,ymax)
-    plt.xlim(xmin, xmax)
-    plt.show()
-
-    return p, h, t, dw, wdir, wspd, hdr
+    s.plot(pirep, fileName)
+    
+    return s
 
 """
 load the data needed for getting the soundings and making the plots
@@ -137,18 +174,23 @@ def loadPirepData(xmlTree):
                     
                 p.sky += '{}: {} '.format(s[0], s[1])
                 
+        ice = rpt.find('icing_condition')
+        if ice is not None:
+            p.icing = ""
+            for i in ice.items():
+                if i[0] == 'icing_base_ft_msl':
+                    p.iceBase = i[1]
+                if i[0] == 'icing_top_ft_msl':
+                    p.iceTop = i[1]
+                    
+                p.icing += '{}: {} '.format(i[0], i[1])
+                
         turb = rpt.find('turbulence_condition')
         if turb is not None:
             p.turb = ""
             for t in turb.items():
                 p.turb += '{}: {} '.format(t[0], t[1])
                 
-        ice = rpt.find('icing_condition')
-        if ice is not None:
-            p.ice = ""
-            for i in ice.items():
-                p.ice += '{}: {} '.format(i[0], i[1])
-
         pirepList.append(p)
 
     return(pirepList)
