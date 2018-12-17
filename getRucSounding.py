@@ -69,7 +69,7 @@ class Sounding:
 
         plt.plot(self.temp, self.height*MetersToFeet)
         plt.plot(self.dewpt, self.height*MetersToFeet)
-        plt.title(p.raw, fontsize='small')
+        plt.title(p.raw, fontsize='x-small')
         plt.xlabel('deg C')
         plt.ylabel('ft MSL')
         if p.cloudBase is not None:
@@ -102,6 +102,8 @@ class Sounding:
             plt.show()
         else:
             plotFile.savefig()
+
+        plt.close(fig)
         
 
 def getRucSounding(pirep, model='Op40'):
@@ -118,6 +120,7 @@ def getRucSounding(pirep, model='Op40'):
     # This keeps only the first dataset of the N they insist on delivering.  Else we could just initialize the dataframe from the url!
     
     i = 0
+    data1hr = None
     for m in re.finditer(model,data):
         if i==1:
             hdr = data[0:m.start()-1]
@@ -126,6 +129,10 @@ def getRucSounding(pirep, model='Op40'):
             break
         i += 1
 
+    if data1hr is None:
+        print('getRucSounding failed')
+        return None
+    
     f = io.StringIO(data1hr)
     df=pd.read_table(f,delim_whitespace=True,skiprows=6,names=['type','press','height','temp','dewpt','wind dir','wind spd'])
 
@@ -145,10 +152,18 @@ def plotRucSoundingForPirep(pirep, model='Op40'):
 
     s = getRucSounding(pirep, model)
 
-    s.plot(pirep)
-    
-    return s
+    if s is not None:
+        s.plot(pirep)
+        return s
 
+def plotRucSoundingForPirepList(plist, outFileName, model='Op40'):
+    setPlotFile(outFileName)
+
+    for p in plist:
+        plotRucSoundingForPirep(p, model)
+
+    closePlotFile()
+    
 """
 load the data needed for getting the soundings and making the plots
 from xmlTree, and elementTree.  It is assumed this tree has been returned,

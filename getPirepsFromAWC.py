@@ -129,5 +129,5 @@ def filterPireps(url, outFileName=None):
         of = open(outFileName, 'w')
         prunedTree.write(of, encoding='unicode', xml_declaration=True)
         of.close()
-    else:
-        return prunedTree
+
+    return prunedTree
