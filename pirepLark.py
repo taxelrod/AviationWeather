@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from lark import Lark, Transformer, v_args
+from lark import Lark, Transformer, Token
 import sys
 
 pirep_grammar = """
@@ -20,7 +20,6 @@ pirep_grammar = """
 
     ?words: CNAME
          | words CNAME
-         | words "-" CNAME
 
     ?base_kw: "BASE"
          | "BASES"
@@ -45,6 +44,18 @@ pirep_grammar = """
     %ignore WS_INLINE
 """
 
+def getAltitudesFromTree(tree):
+
+    for node in tree.find_data('basealt0'):
+        for child in node.children:
+            if isinstance(child, Token):
+                print('Altitude: ', int(child))
+        
+    for node in tree.find_data('basealt1'):
+        for child in node.children:
+            if isinstance(child, Token):
+                print('Altitude: ', int(child))
+        
 if __name__ == '__main__':
 #    pirep_parser = Lark(pirep_grammar, ambiguity='explicit', debug=True)
     pirep_parser = Lark(pirep_grammar, ambiguity='resolve', debug=True)
@@ -60,7 +71,11 @@ if __name__ == '__main__':
                 s = input('> ')
             except EOFError:
                 break
-            print(pirep(s))
+            ptree = pirep(s)
+            print(ptree)
+            print(s)
+            getAltitudesFromTree(ptree)
+            
     else:
         for line in inF:
             tline = line.translate({ord('-'):u' ', ord('/'):u' ', ord('\\'):u' '})
