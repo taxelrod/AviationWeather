@@ -125,9 +125,47 @@ def filterPireps(url, outFileName=None):
         reportRoot.remove(zap)
 
     prunedTree = ET.ElementTree(reportRoot)
+
+    #
+    # Now go through and filter duplicates - these are pireps that are identical in all but receipt_time
+    #
+
+    zapList = []
+    keepList = []
+    for rpt in reportRoot.iter('AircraftReport'):
+        # get obsTime, lat, longi
+        obsTime = rpt.find('observation_time').text
+        lat = rpt.find('latitude').text
+        longi = rpt.find('longitude').text
+        if (obsTime, lat, longi) not in keepList:
+            keepList.append((obsTime, lat, longi))
+        else:
+            zapList.append(rpt)
+            print('filtered: ', obsTime, lat, longi)
+            
+    for zap in zapList:
+        reportRoot.remove(zap)
+
     if outFileName is not None:
         of = open(outFileName, 'w')
         prunedTree.write(of, encoding='unicode', xml_declaration=True)
         of.close()
 
     return prunedTree
+
+def getSKfromPireps(ptree):
+
+    root = ptree.getroot()
+    SKlist = []
+
+    for rpt in root.iter('AircraftReport'):
+        rtype = rpt.find('report_type').text
+        if rtype == 'PIREP':
+            raw = rpt.find('raw_text').text
+            pDict = parsePirep(raw)
+            if 'SK' in pDict:
+                SKlist.append(pDict['SK'])
+
+    return SKlist
+            
+            
