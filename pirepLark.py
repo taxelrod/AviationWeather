@@ -14,14 +14,16 @@ pirep_grammar = """
          | base words
 
     ?altitude: number
-             | "UNKN"
+             | unkn
 
     ?number.9: NUMBER
+
+    ?unkn.9: "UNKN"
 
     ?words: CNAME
          | words CNAME
 
-    ?base_kw: "BASE"
+    ?base_kw.8: "BASE"
          | "BASES"
          | "BKN"
          | "OVC"
@@ -29,11 +31,12 @@ pirep_grammar = """
          | "SCT"
 
     ?tops: tops_kw
-         | tops_kw altitude
+         | tops_kw altitude -> topalt0
+         | altitude tops_kw -> topalt1
          | tops words
          | words tops
     
-    ?tops_kw: "TOPS"
+    ?tops_kw.8: "TOPS"
             | "TOP"
             | "T"
 
@@ -46,15 +49,19 @@ pirep_grammar = """
 
 def getAltitudesFromTree(tree):
 
-    for node in tree.find_data('basealt0'):
+    baseAltitude = None
+    for node in tree.find_pred(lambda n: (n.data == 'basealt0') or (n.data == 'basealt1')):
         for child in node.children:
             if isinstance(child, Token):
-                print('Altitude: ', int(child))
+                baseAltitude = int(child)
         
-    for node in tree.find_data('basealt1'):
+    topAltitude = None
+    for node in tree.find_pred(lambda n: (n.data == 'topalt0') or (n.data == 'topalt1')):
         for child in node.children:
             if isinstance(child, Token):
-                print('Altitude: ', int(child))
+                topAltitude = int(child)
+
+    return (baseAltitude, topAltitude)
         
 if __name__ == '__main__':
 #    pirep_parser = Lark(pirep_grammar, ambiguity='explicit', debug=True)
@@ -74,15 +81,15 @@ if __name__ == '__main__':
             ptree = pirep(s)
             print(ptree)
             print(s)
-            getAltitudesFromTree(ptree)
+            print(getAltitudesFromTree(ptree))
             
     else:
         for line in inF:
-            tline = line.translate({ord('-'):u' ', ord('/'):u' ', ord('\\'):u' '})
+            tline = line.translate({ord('-'):u' ', ord('/'):u' ', ord('\\'):u' ', ord('.'):u' '})
             try:
                 ptree = pirep(tline.rstrip())
-                print(ptree)
-                print(tline)
+#                print(ptree)
+                print(tline.rstrip(), ' -> ', getAltitudesFromTree(ptree))
             except:
                 print('parse error on: ', tline)
                 continue
