@@ -13,12 +13,13 @@ pirep_grammar = """
          | words base
          | base words
 
-    ?altitude: number
+    ?altitude.9: number
              | unkn
+             | "FL" number
 
-    ?number.9: NUMBER
+    ?number: NUMBER
 
-    ?unkn.9: "UNKN"
+    ?unkn: "UNKN"
 
     ?words: CNAME
          | words CNAME
@@ -62,6 +63,7 @@ def getAltitudesFromTree(tree):
                 topAltitude = int(child)
 
     return (baseAltitude, topAltitude)
+
         
 if __name__ == '__main__':
 #    pirep_parser = Lark(pirep_grammar, ambiguity='explicit', debug=True)
@@ -78,7 +80,8 @@ if __name__ == '__main__':
                 s = input('> ')
             except EOFError:
                 break
-            ptree = pirep(s)
+            ts = s.translate({ord('-'):u' ', ord('/'):u' ', ord('\\'):u' ', ord('.'):u' '})
+            ptree = pirep(ts)
             print(ptree)
             print(s)
             print(getAltitudesFromTree(ptree))
