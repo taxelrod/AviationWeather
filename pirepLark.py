@@ -7,6 +7,7 @@ pirep_grammar = """
     ?start: base
           | tops
           | base tops
+          | tops base
 
     ?base: base_kw altitude -> basealt0
          | altitude base_kw -> basealt1
@@ -63,6 +64,20 @@ def getAltitudesFromTree(tree):
                 topAltitude = int(child)
 
     return (baseAltitude, topAltitude)
+
+def parseAltitudes(skyString):
+
+    pirep_parser = Lark(pirep_grammar, ambiguity='resolve', debug=True)
+    parser = pirep_parser.parse
+
+    ts = skyString.translate({ord('-'):u' ', ord('/'):u' ', ord('\\'):u' ', ord('.'):u' '})
+    try:
+        parseTree = parser(ts)
+    except:
+        print('parse error on: ', ts)
+        return (None, None)
+    
+    return getAltitudesFromTree(parseTree)    
 
         
 if __name__ == '__main__':
