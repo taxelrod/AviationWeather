@@ -10,6 +10,7 @@ import requests
 from collections import namedtuple
 import xml.etree.ElementTree as ET
 from pirepLark import parseAltitudes
+import getAirportData
 
 # these groups are required
 
@@ -56,6 +57,17 @@ reDict['IC'] = reIC
 
 reRM = re.compile(r'/RM')
 reDict['RM'] = reRM
+
+# altitudes in Pireps that are greater than hundredsCutoff are assumed to be in feet rather
+# than hundreds of feet
+
+hundredsCutoff = 400
+
+# see comments in correctForAGL()
+#
+minAltitudeAGL = 200
+
+airportData = getAirportData.AirportData('Data/USairports.csv')
 
 def parsePirep(line):
     ngrp = len(reDict)
@@ -206,16 +218,45 @@ def reparseSK(ptree):
                 (baseAlt, topAlt) = parseAltitudes(pDict['SK'])
                 skElement.clear()
                 if baseAlt is not None:
-                    skElement.set('cloud_base_ft_msl', str(baseAlt*100)) # convert to ft from 100's ft
-                    print('set base to: ', baseAlt*100)
-#                else:
-#                    skElement.set('cloud_base_ft_msl', None)
+                    if baseAlt > hundredsCutoff:
+                        baseAltFt = baseAlt
+                    else:
+                        baseAltFt = baseAlt*100
+                    baseAltFt = correctForAGL(pDict, baseAltFt)
+                    skElement.set('cloud_base_ft_msl', str(baseAltFt))
+                    print('set base to: ', baseAltFt)
                 if topAlt is not None:
-                    skElement.set('cloud_top_ft_msl', str(topAlt*100))
-                    print('set top to: ', topAlt*100)
-#                else:
-#                    skElement.set('cloud_top_ft_msl', None)
+                    if topAlt > hundredsCutoff:
+                        topAltFt = topAlt
+                    else:
+                        topAltFt = topAlt*100
+                    topAltFt = correctForAGL(pDict, topAltFt)
+                    skElement.set('cloud_top_ft_msl', str(topAltFt))
+                    print('set top to: ', topAltFt)
 
-                
+
+#
+# Some altitudes in Pireps are actually AGL and not MSL.  Apply the rule that if the report is directly at an
+# airport, and the reported altitude is less than the field altitude + minAltitudeAGL, correct AGL to MSL
+#
+def correctForAGL(pDict, altFt):
+            
+    if 'OV' not in pDict:
+        print('OV missing for: ', raw)
+        return altFt
+    else:
+        airportID = 'K' + pDict['OV'].strip()
+        airportAltitude = airportData.getAirportAltitude(airportID)
+        print(airportID,' altitude:', airportAltitude, ' Pirep alt:', altFt)
+        if airportAltitude is not None:
+            if altFt < airportAltitude + minAltitudeAGL:
+                print('Corrected ', altFt, ' AGL to ', altFt + airportAltitude)
+                return altFt + airportAltitude
+            else:
+                return altFt
+        else:
+            return altFt
+
+               
 
             
